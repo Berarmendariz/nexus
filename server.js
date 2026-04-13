@@ -1,10 +1,14 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
-import { registerMiroFishRoutes, startMiroFishBackend, stopMiroFishBackend } from './mirofish-manager.js'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
-dotenv.config({ path: '.env.local', override: false })
-dotenv.config({ path: '.env', override: true })
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+// Load .env with ABSOLUTE paths so it works regardless of cwd
+dotenv.config({ path: path.join(__dirname, '.env.local'), override: false })
+dotenv.config({ path: path.join(__dirname, '.env'), override: true })
 
 const app = express()
 const PORT = process.env.PORT || 3002
@@ -18,6 +22,8 @@ app.get('/health', (req, res) => {
 })
 
 // Register MiroFish proxy routes (/api/mirofish/*)
+// Loaded dynamically so dotenv is already applied
+const { registerMiroFishRoutes, startMiroFishBackend, stopMiroFishBackend } = await import('./mirofish-manager.js')
 registerMiroFishRoutes(app)
 
 // In-memory project store
