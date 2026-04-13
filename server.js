@@ -14,7 +14,7 @@ dotenv.config({ path: path.join(__dirname, '.env') })
 dotenv.config({ path: path.join(__dirname, '.env.local'), override: true })
 
 const app = express()
-const PORT = process.env.PORT || 3002
+const PORT = process.env.PORT || 3005
 
 const allowedOrigins = [
   'http://localhost:5173',
