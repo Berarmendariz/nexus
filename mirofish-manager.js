@@ -17,11 +17,30 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // this file lives inside nexus/
 const PROJECT_ROOT = path.resolve(__dirname);
 const MIROFISH_BACKEND = path.join(PROJECT_ROOT, 'mirofish-backend');
-const MIROFISH_VENV_PYTHON = path.join(PROJECT_ROOT, '.mirofish-venv', 'bin', 'python');
 const FLASK_PORT = parseInt(process.env.MIROFISH_PORT || '5001');
 const FLASK_HOST = process.env.MIROFISH_HOST || '127.0.0.1';
-const STARTUP_TIMEOUT_MS = 30000;
+const STARTUP_TIMEOUT_MS = 60000;
 const HEALTH_CHECK_INTERVAL_MS = 30000;
+
+/** Resolve the Python binary: venv → mirofish-backend/.venv → system fallback */
+function resolvePython() {
+  const candidates = [
+    path.join(PROJECT_ROOT, '.mirofish-venv', 'bin', 'python'),
+    path.join(PROJECT_ROOT, '.mirofish-venv', 'bin', 'python3'),
+    path.join(MIROFISH_BACKEND, '.venv', 'bin', 'python'),
+    path.join(MIROFISH_BACKEND, '.venv', 'bin', 'python3'),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      console.log(`[MiroFish] Using Python: ${p}`);
+      return p;
+    }
+  }
+  console.warn('[MiroFish] No venv found, falling back to system python3');
+  return 'python3';
+}
+
+const MIROFISH_VENV_PYTHON = resolvePython();
 
 let flaskProcess = null;
 let flaskReady = false;

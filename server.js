@@ -16,7 +16,9 @@ const PORT = process.env.PORT || 3002
 // CORS: allow localhost (dev) + any Vercel/custom frontend (prod)
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://localhost:5174',
   'http://localhost:4173',
+  'http://localhost:4174',
   process.env.FRONTEND_URL,        // set in Railway
 ].filter(Boolean)
 app.use(cors({

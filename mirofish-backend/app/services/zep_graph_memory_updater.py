@@ -241,9 +241,10 @@ class ZepGraphMemoryUpdater:
         self.api_key = api_key or Config.ZEP_API_KEY
         
         if not self.api_key:
-            raise ValueError("ZEP_API_KEY未配置")
-        
-        self.client = Zep(api_key=self.api_key)
+            logger.warning('ZEP_API_KEY not configured — graph memory updates disabled')
+            self.client = None
+        else:
+            self.client = Zep(api_key=self.api_key)
         
         # 活动队列
         self._activity_queue: Queue = Queue()
@@ -402,6 +403,10 @@ class ZepGraphMemoryUpdater:
             platform: 平台名称
         """
         if not activities:
+            return
+        
+        if not self.client:
+            logger.debug('Zep client not initialized, skipping batch send')
             return
         
         # 将多条活动合并为一条文本，用换行分隔
