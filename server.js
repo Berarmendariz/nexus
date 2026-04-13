@@ -139,9 +139,6 @@ app.post('/api/scenarios/compare', async (req, res) => {
   }
 })
 
-const { registerSimulationRoutes } = await import('./simulate.js')
-registerSimulationRoutes(app)
-
 const projects = new Map()
 
 app.post('/api/projects', (req, res) => {
