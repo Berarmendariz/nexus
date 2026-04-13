@@ -9,9 +9,9 @@ import { generatePDF } from './pdfGenerator.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// Load .env with ABSOLUTE paths so it works regardless of cwd
-dotenv.config({ path: path.join(__dirname, '.env.local'), override: false })
-dotenv.config({ path: path.join(__dirname, '.env'), override: true })
+// Load .env first (defaults), then .env.local overrides (user keys)
+dotenv.config({ path: path.join(__dirname, '.env') })
+dotenv.config({ path: path.join(__dirname, '.env.local'), override: true })
 
 const app = express()
 const PORT = process.env.PORT || 3002
@@ -163,7 +163,14 @@ app.get('/api/projects/:id', (req, res) => {
 })
 
 app.listen(PORT, async () => {
-  console.log(`\n🔷 NEXUS BACKEND\n   http://localhost:${PORT}\n   🤖 MiroFish: POST /api/mirofish/start to launch\n  `)
+  const llmKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY
+  console.log(`
+🔷 NEXUS BACKEND
+   http://localhost:${PORT}
+   🔑 LLM Key: ${llmKey ? llmKey.slice(0, 15) + '...' : '❌ NOT SET — simulations will use mock data'}
+   🧠 Zep Key: ${process.env.ZEP_API_KEY ? '✅ SET' : '⚠️  not set'}
+   🤖 MiroFish: POST /api/mirofish/start to launch
+  `)
 
   const ok = await startMiroFishBackend().catch(err => {
     console.warn('[Nexus] MiroFish auto-start failed:', err.message)
