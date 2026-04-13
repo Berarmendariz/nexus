@@ -1,0 +1,11 @@
+node_modules/
+.mirofish-venv/
+*.pyc
+__pycache__/
+.env
+.env.local
+*.log
+.DS_Store
+check-keys.mjs
+start-local.sh
+test.sh

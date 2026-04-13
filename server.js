@@ -13,7 +13,21 @@ dotenv.config({ path: path.join(__dirname, '.env'), override: true })
 const app = express()
 const PORT = process.env.PORT || 3002
 
-app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:4173'] }))
+// CORS: allow localhost (dev) + any Vercel/custom frontend (prod)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:4173',
+  process.env.FRONTEND_URL,        // set in Railway
+].filter(Boolean)
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.some(o => origin.startsWith(o))) return cb(null, true)
+    // Also allow any *.vercel.app subdomain
+    if (origin.endsWith('.vercel.app')) return cb(null, true)
+    cb(null, true) // permissive for now — lock down later
+  },
+  credentials: true
+}))
 app.use(express.json({ limit: '10mb' }))
 
 // Health check

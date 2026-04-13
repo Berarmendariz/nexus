@@ -14,7 +14,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// this file lives inside propvaluer/
+// this file lives inside nexus/
 const PROJECT_ROOT = path.resolve(__dirname);
 const MIROFISH_BACKEND = path.join(PROJECT_ROOT, 'mirofish-backend');
 const MIROFISH_VENV_PYTHON = path.join(PROJECT_ROOT, '.mirofish-venv', 'bin', 'python');
