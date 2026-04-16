@@ -13,6 +13,7 @@
  */
 
 import { listSimulations, getSimulation, saveSimulation, deleteSimulation } from './simulationStore.js'
+import { getAllAgentContext } from './supabase-rag.js'
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
 
@@ -122,7 +123,7 @@ Responde SOLO JSON válido:
 }
 
 /** Generate agent debates and interactions */
-async function generateAgentActivities(allAgents, project, question, sendEvent) {
+async function generateAgentActivities(allAgents, project, question, sendEvent, ragContext = {}) {
   const totalRounds = 8
   const activities = []
 
@@ -156,6 +157,14 @@ async function generateAgentActivities(allAgents, project, question, sendEvent) 
   const consideringCount = allAgents.filter(a => a.type === 'buyer' && a.intent === 'considering').length
   const notBuyingCount = allAgents.filter(a => a.type === 'buyer' && a.intent === 'notbuying').length
 
+  // Build RAG injection block
+  const ragBlock = [
+    ragContext.market,
+    ragContext.financial,
+    ragContext.legal,
+    ragContext.buyer,
+  ].filter(Boolean).join('\n\n')
+
   const prompt = `Eres director de simulación de inversiones. Genera un debate profundo y realista entre estos agentes analizando el proyecto.
 
 PROYECTO:
@@ -164,6 +173,7 @@ PROYECTO:
 
 PREGUNTA: ${question}
 
+${ragBlock ? '--- DATOS REALES DE PROPVALUER (usa estos datos en el análisis) ---\n' + ragBlock + '\n--- FIN DATOS REALES ---\n\n' : ''}
 MERCADO DE COMPRADORES (${allAgents.filter(a=>a.type==='buyer').length} potenciales):
 - ${buyingCount} listos para comprar
 - ${consideringCount} evaluando opciones  
@@ -241,7 +251,7 @@ JSON exacto:
 }
 
 /** Generate structured report */
-async function generateReport(project, question, activities, allAgents) {
+async function generateReport(project, question, activities, allAgents, ragContext = {}) {
   const activitySummary = activities
     .filter(a => a.action !== 'join' && a.action !== 'like')
     .map(a => `[${a.role}] ${a.content}`)
@@ -254,12 +264,15 @@ async function generateReport(project, question, activities, allAgents) {
     notBuying: allAgents.filter(a => a.type === 'buyer' && a.intent === 'notbuying').length,
   }
 
+  const ragSummary = [ragContext.market, ragContext.financial].filter(Boolean).join('\n')
+
   const prompt = `Analista inmobiliario senior. Genera un reporte ejecutivo basado en la simulación de ${allAgents.length} agentes.
 
 PROYECTO: ${project.name || 'Proyecto'} | ${project.location || 'México'} | ${project.type || 'residencial'}
 ${project.units ? `Unidades: ${project.units}` : ''} ${project.priceRange ? `| Precio: ${project.priceRange}` : ''}
 PREGUNTA: ${question}
 
+${ragSummary ? '--- DATOS REALES DE PROPVALUER ---\n' + ragSummary + '\n--- FIN DATOS REALES ---\n\n' : ''}
 DEMANDA SIMULADA (${buyerStats.total} compradores potenciales):
 - ${buyerStats.buying} compradores listos (${Math.round(buyerStats.buying/buyerStats.total*100)}% de absorción)
 - ${buyerStats.considering} evaluando (${Math.round(buyerStats.considering/buyerStats.total*100)}%)
@@ -315,6 +328,19 @@ export function registerSimulationRoutes(app) {
     try {
       sendEvent('status', { phase: 'initializing', message: 'Inicializando simulación Nexus...', simulationId: simId })
 
+      // Phase 0.5: Fetch RAG context from Supabase
+      sendEvent('status', { phase: 'fetching_data', message: 'Consultando datos reales de PropValuer...' })
+      let ragContext = { market: null, financial: null, legal: null, buyer: null }
+      try {
+        ragContext = await getAllAgentContext(project)
+        const ragSources = Object.entries(ragContext).filter(([, v]) => v).map(([k]) => k)
+        if (ragSources.length) {
+          sendEvent('status', { phase: 'data_loaded', message: `Datos reales cargados: ${ragSources.join(', ')}` })
+        }
+      } catch (e) {
+        console.warn('[Simulate] RAG context fetch error:', e.message)
+      }
+
       // Phase 1: Generate dynamic agents
       sendEvent('status', { phase: 'creating_agents', message: 'Generando ecosistema de agentes con IA...' })
       let dynamicAgents = { investors: [], buyers: [] }
@@ -346,14 +372,14 @@ export function registerSimulationRoutes(app) {
 
       await sleep(500)
 
-      // Phase 2: Agent debate
-      const activities = await generateAgentActivities(allAgents, project, question, sendEvent)
+      // Phase 2: Agent debate (with RAG context injected)
+      const activities = await generateAgentActivities(allAgents, project, question, sendEvent, ragContext)
 
       // Phase 3: Report
       sendEvent('status', { phase: 'generating_report', message: 'Generando reporte ejecutivo...' })
       let report
       try {
-        report = await generateReport(project, question, activities, allAgents)
+        report = await generateReport(project, question, activities, allAgents, ragContext)
       } catch (err) {
         console.error('[Simulate] Report generation failed:', err.message)
         report = {

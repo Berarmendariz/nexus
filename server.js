@@ -6,6 +6,11 @@ import { fileURLToPath } from 'url'
 import { registerSimulationRoutes } from './simulate.js'
 import { getSimulation } from './simulationStore.js'
 import { generatePDF } from './pdfGenerator.js'
+import {
+  listKnowledgeDocs, uploadKnowledgeDoc, getKnowledgeDoc,
+  deleteKnowledgeDoc, getDocumentTypes, getRAGStats,
+} from './supabase-rag.js'
+import multer from 'multer'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -33,6 +38,9 @@ app.use(cors({
   credentials: true
 }))
 app.use(express.json({ limit: '10mb' }))
+
+// Multer for file uploads (50MB max)
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } })
 
 app.get('/health', (req, res) => {
   res.json({ service: 'Nexus Backend', version: '1.0.0', status: 'ok' })
@@ -182,3 +190,74 @@ app.listen(PORT, async () => {
 
 process.on('SIGTERM', stopMiroFishBackend)
 process.on('exit', stopMiroFishBackend)
+
+// ── Knowledge Base / RAG endpoints ──
+
+app.get('/api/rag/stats', async (req, res) => {
+  try {
+    const stats = await getRAGStats()
+    res.json({ success: true, data: stats })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
+
+app.get('/api/knowledge-base', async (req, res) => {
+  try {
+    const { page = 1, pageSize = 20, type, scope, search } = req.query
+    const result = await listKnowledgeDocs({
+      page: parseInt(page), pageSize: parseInt(pageSize),
+      documentType: type, scope, search,
+    })
+    res.json({ success: true, data: result.data, count: result.count })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
+
+app.get('/api/knowledge-base/types', async (req, res) => {
+  try {
+    const types = await getDocumentTypes()
+    res.json({ success: true, data: types })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
+
+app.get('/api/knowledge-base/:id', async (req, res) => {
+  try {
+    const doc = await getKnowledgeDoc(req.params.id)
+    if (!doc) return res.status(404).json({ success: false, error: 'Not found' })
+    res.json({ success: true, data: doc })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
+
+app.post('/api/knowledge-base', upload.single('file'), async (req, res) => {
+  try {
+    const { title, description, documentType, scope, state, municipality, sourceUrl } = req.body
+    if (!title) return res.status(400).json({ success: false, error: 'title is required' })
+
+    const doc = await uploadKnowledgeDoc({
+      title, description, documentType, scope, state, municipality, sourceUrl,
+      fileBuffer: req.file?.buffer,
+      fileName: req.file?.originalname,
+      contentType: req.file?.mimetype,
+    })
+    res.json({ success: true, data: doc })
+  } catch (err) {
+    console.error('[KB Upload]', err)
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
+
+app.delete('/api/knowledge-base/:id', async (req, res) => {
+  try {
+    const ok = await deleteKnowledgeDoc(req.params.id)
+    if (!ok) return res.status(404).json({ success: false, error: 'Not found' })
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
